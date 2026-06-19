@@ -1,49 +1,65 @@
 # 阅读计划 Reading Plans
 
-个人哲学阅读计划看板，支持多设备在线查看。
+个人哲学阅读计划看板，支持多设备在线查看、在线新增计划。
 
 ## 部署到 Vercel（三步）
 
 ### 1. 推送到 GitHub
 
 ```bash
-# 在项目目录下
 git init
 git add .
 git commit -m "init: reading plans site"
-# 在 GitHub 上新建一个仓库（比如 reading-plans），然后：
-git remote add origin https://github.com/你的用户名/reading-plans.git
 git branch -M main
+git remote add origin https://github.com/你的用户名/reading-plans.git
 git push -u origin main
 ```
 
-### 2. 连接 Vercel
+### 2. 连接 Vercel 并设置环境变量
 
 1. 打开 [vercel.com](https://vercel.com)，用 GitHub 登录
-2. 点 "Add New Project"
-3. 选择刚才的 `reading-plans` 仓库
-4. Framework Preset 会自动识别为 Vite，**不需要改任何设置**
-5. 点 Deploy
+2. 点 "Add New Project"，选择 `reading-plans` 仓库
+3. **部署前**，展开 "Environment Variables"，添加以下三个变量：
 
-### 3. 完成
+| 变量名 | 值 | 说明 |
+|--------|-----|------|
+| `GITHUB_TOKEN` | 你的 GitHub Personal Access Token | [创建方法见下文](#创建-github-token) |
+| `GITHUB_REPO` | `你的用户名/reading-plans` | 仓库路径 |
+| `UPLOAD_PASSWORD` | 自己设一个密码 | 上传时需要输入 |
 
-部署完成后 Vercel 会给你一个 `xxx.vercel.app` 的域名，任何设备都能访问。
+4. 点 Deploy
 
-## 更新阅读计划
+### 3. 创建 GitHub Token
 
-编辑 `src/data/` 下的三个 `.md` 文件：
+1. 打开 https://github.com/settings/tokens?type=beta （Fine-grained tokens）
+2. 点 "Generate new token"
+3. Token name 随便填（如 `reading-plans-upload`）
+4. Expiration 选个长一点的（如 1 年）
+5. Repository access 选 "Only select repositories"，选中 `reading-plans`
+6. Permissions → Repository permissions → Contents → 选 **Read and write**
+7. 点 Generate token，复制 token 填到 Vercel 环境变量
 
-- `politics.md` — 政治哲学（阿伦特）
-- `aesthetics.md` — 美学（本雅明）
-- `subjectivity.md` — 主体性研究（断裂与叙事）
+## 使用方式
 
-改完后 `git push`，Vercel 会自动重新部署。
+### 在线新增计划
+打开网站，点侧栏的「+ 新增计划」，上传 MD 文件，填写标题等信息，输入上传密码，提交。约 1 分钟后刷新页面即可看到。
 
-## 新增阅读计划
+### 手动新增
+编辑 `src/data/` 下的 `.md` 文件，push 到 GitHub，Vercel 自动重新部署。
 
-1. 在 `src/data/` 下新建一个 `.md` 文件
-2. 在 `src/App.jsx` 的 `plans` 数组里加一个条目（照着现有的格式写就行）
-3. Push
+MD 文件需要在头部加 frontmatter：
+
+```markdown
+---
+title: 标题
+subtitle: 副标题
+icon: 📖
+desc: 关键词1 · 关键词2
+order: 4
+---
+
+正文内容...
+```
 
 ## 本地开发
 

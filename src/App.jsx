@@ -1,38 +1,171 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
-import politicsMd from './data/politics.md?raw'
-import aestheticsMd from './data/aesthetics.md?raw'
-import subjectivityMd from './data/subjectivity.md?raw'
 
-const plans = [
-  {
-    id: 'politics',
-    icon: '🏛',
-    title: '政治哲学',
-    subtitle: '阿伦特与行动理论',
-    desc: 'The Human Condition · 诞生性 · 计算性思考',
-    content: politicsMd,
-  },
-  {
-    id: 'aesthetics',
-    icon: '🎭',
-    title: '美学',
-    subtitle: '本雅明·寄喻与悲苦剧',
-    desc: '德意志悲苦剧的起源 · 废墟 · 忧郁',
-    content: aestheticsMd,
-  },
-  {
-    id: 'subjectivity',
-    icon: '🪞',
-    title: '主体性研究',
-    subtitle: '断裂与叙事',
-    desc: '费希特 · 拉康 · 利科 · 齐泽克',
-    content: subjectivityMd,
-  },
-]
+/* ── Frontmatter parser ─────────────────────── */
+function parseFrontmatter(raw) {
+  const m = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/)
+  if (!m) return { meta: {}, content: raw }
+  const meta = {}
+  m[1].split('\n').forEach(line => {
+    const idx = line.indexOf(':')
+    if (idx > 0) meta[line.slice(0, idx).trim()] = line.slice(idx + 1).trim()
+  })
+  return { meta, content: m[2] }
+}
 
+/* ── Auto-discover all .md files via glob ───── */
+const mdModules = import.meta.glob('./data/*.md', { query: '?raw', import: 'default', eager: true })
+
+const plans = Object.entries(mdModules)
+  .map(([path, raw]) => {
+    const { meta, content } = parseFrontmatter(raw)
+    const filename = path.split('/').pop().replace('.md', '')
+    return {
+      id: filename,
+      icon: meta.icon || '📖',
+      title: meta.title || filename,
+      subtitle: meta.subtitle || '',
+      desc: meta.desc || '',
+      order: parseInt(meta.order) || 999,
+      content,
+    }
+  })
+  .sort((a, b) => a.order - b.order)
+
+/* ── Upload Modal ───────────────────────────── */
+function UploadModal({ open, onClose }) {
+  const [form, setForm] = useState({ title: '', subtitle: '', icon: '📖', desc: '', filename: '', password: '' })
+  const [fileContent, setFileContent] = useState('')
+  const [fileName, setFileName] = useState('')
+  const [status, setStatus] = useState({ type: '', msg: '' })
+  const [loading, setLoading] = useState(false)
+  const fileRef = useRef()
+
+  const handleFile = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setFileName(file.name)
+    const baseName = file.name.replace(/\.md$/i, '')
+    setForm(f => ({ ...f, filename: baseName }))
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      let text = ev.target.result
+      // Strip existing frontmatter if present
+      const fmMatch = text.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n([\s\S]*)$/)
+      if (fmMatch) text = fmMatch[1]
+      setFileContent(text)
+    }
+    reader.readAsText(file)
+  }
+
+  const handleSubmit = async () => {
+    if (!fileContent) return setStatus({ type: 'error', msg: '请选择一个 .md 文件' })
+    if (!form.title) return setStatus({ type: 'error', msg: '请填写标题' })
+    if (!form.password) return setStatus({ type: 'error', msg: '请输入上传密码' })
+
+    setLoading(true)
+    setStatus({ type: '', msg: '' })
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...form,
+          content: fileContent,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setStatus({ type: 'success', msg: data.message || '上传成功！约1分钟后刷新页面即可看到。' })
+        setForm({ title: '', subtitle: '', icon: '📖', desc: '', filename: '', password: form.password })
+        setFileContent('')
+        setFileName('')
+        if (fileRef.current) fileRef.current.value = ''
+      } else {
+        setStatus({ type: 'error', msg: data.error || '上传失败' })
+      }
+    } catch (err) {
+      setStatus({ type: 'error', msg: '网络错误: ' + err.message })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (!open) return null
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2 className="modal-title">新增阅读计划</h2>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+
+        <div className="modal-body">
+          <div className="form-group">
+            <label className="form-label">Markdown 文件</label>
+            <input type="file" accept=".md" ref={fileRef} onChange={handleFile} className="form-file" />
+            {fileName && <div className="form-hint">已选择: {fileName}</div>}
+          </div>
+
+          <div className="form-row">
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">标题 *</label>
+              <input type="text" placeholder="如：政治哲学" value={form.title}
+                onChange={e => setForm(f => ({ ...f, title: e.target.value }))} className="form-input" />
+            </div>
+            <div className="form-group" style={{ width: 72 }}>
+              <label className="form-label">图标</label>
+              <input type="text" placeholder="📖" value={form.icon}
+                onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} className="form-input" style={{ textAlign: 'center' }} />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">副标题</label>
+            <input type="text" placeholder="如：阿伦特与行动理论" value={form.subtitle}
+              onChange={e => setForm(f => ({ ...f, subtitle: e.target.value }))} className="form-input" />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">简要描述</label>
+            <input type="text" placeholder="关键词，用 · 分隔" value={form.desc}
+              onChange={e => setForm(f => ({ ...f, desc: e.target.value }))} className="form-input" />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">文件名（英文）</label>
+            <input type="text" placeholder="自动从文件名生成" value={form.filename}
+              onChange={e => setForm(f => ({ ...f, filename: e.target.value }))} className="form-input" />
+            <div className="form-hint">保存为 src/data/{form.filename || '...'}.md</div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">上传密码 *</label>
+            <input type="password" placeholder="输入上传密码" value={form.password}
+              onChange={e => setForm(f => ({ ...f, password: e.target.value }))} className="form-input" />
+          </div>
+
+          {status.msg && (
+            <div className={`form-status ${status.type}`}>{status.msg}</div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>取消</button>
+          <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
+            {loading ? '上传中...' : '上传并部署'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Main App ───────────────────────────────── */
 export default function App() {
-  const [activeId, setActiveId] = useState('politics')
+  const [activeId, setActiveId] = useState(plans[0]?.id || '')
   const [dark, setDark] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') === 'dark' ||
@@ -41,8 +174,9 @@ export default function App() {
     return false
   })
   const [showTop, setShowTop] = useState(false)
+  const [showUpload, setShowUpload] = useState(false)
 
-  const activePlan = plans.find(p => p.id === activeId)
+  const activePlan = plans.find(p => p.id === activeId) || plans[0]
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
@@ -70,11 +204,8 @@ export default function App() {
         </div>
         <nav className="sidebar-nav">
           {plans.map(plan => (
-            <div
-              key={plan.id}
-              className={`nav-item ${activeId === plan.id ? 'active' : ''}`}
-              onClick={() => switchPlan(plan.id)}
-            >
+            <div key={plan.id} className={`nav-item ${activeId === plan.id ? 'active' : ''}`}
+              onClick={() => switchPlan(plan.id)}>
               <span className="nav-icon">{plan.icon}</span>
               <div>
                 <div className="nav-label">{plan.title}</div>
@@ -82,6 +213,12 @@ export default function App() {
               </div>
             </div>
           ))}
+          <div className="nav-item nav-add" onClick={() => setShowUpload(true)}>
+            <span className="nav-icon">＋</span>
+            <div>
+              <div className="nav-label">新增计划</div>
+            </div>
+          </div>
         </nav>
         <div className="sidebar-footer">
           <button className="theme-toggle" onClick={() => setDark(d => !d)}>
@@ -95,17 +232,17 @@ export default function App() {
       <header className="mobile-header">
         <div className="mobile-header-top">
           <span className="mobile-title">阅读计划</span>
-          <button className="mobile-theme-btn" onClick={() => setDark(d => !d)}>
-            {dark ? '☀️' : '🌙'}
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="mobile-theme-btn" onClick={() => setShowUpload(true)}>＋</button>
+            <button className="mobile-theme-btn" onClick={() => setDark(d => !d)}>
+              {dark ? '☀️' : '🌙'}
+            </button>
+          </div>
         </div>
         <div className="mobile-tabs">
           {plans.map(plan => (
-            <button
-              key={plan.id}
-              className={`mobile-tab ${activeId === plan.id ? 'active' : ''}`}
-              onClick={() => switchPlan(plan.id)}
-            >
+            <button key={plan.id} className={`mobile-tab ${activeId === plan.id ? 'active' : ''}`}
+              onClick={() => switchPlan(plan.id)}>
               {plan.icon} {plan.title}
             </button>
           ))}
@@ -117,12 +254,13 @@ export default function App() {
         <div className="content">
           <div className="plan-header">
             <span className="plan-emoji">{activePlan.icon}</span>
-            <h1 className="plan-title">{activePlan.title}<span style={{
-              fontWeight: 400, fontSize: '0.6em', marginLeft: '12px',
-              color: 'var(--text-tertiary)'
-            }}>
-              {activePlan.subtitle}
-            </span></h1>
+            <h1 className="plan-title">{activePlan.title}
+              {activePlan.subtitle && (
+                <span style={{ fontWeight: 400, fontSize: '0.6em', marginLeft: '12px', color: 'var(--text-tertiary)' }}>
+                  {activePlan.subtitle}
+                </span>
+              )}
+            </h1>
             <div className="plan-meta">{activePlan.desc}</div>
           </div>
           <div className="markdown-body">
@@ -132,13 +270,11 @@ export default function App() {
       </main>
 
       {/* Scroll to top */}
-      <button
-        className={`scroll-top ${showTop ? 'visible' : ''}`}
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        aria-label="回到顶部"
-      >
-        ↑
-      </button>
+      <button className={`scroll-top ${showTop ? 'visible' : ''}`}
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="回到顶部">↑</button>
+
+      {/* Upload Modal */}
+      <UploadModal open={showUpload} onClose={() => setShowUpload(false)} />
     </div>
   )
 }
