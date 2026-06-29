@@ -402,7 +402,7 @@ button {
   letter-spacing: 0.01em;
 }
 
-.markdown-body > p:first-of-type:not(blockquote + p)::first-letter {
+.markdown-body > p:first-of-type::first-letter {
   float: left;
   color: var(--accent);
   font-family: var(--serif-lat), var(--serif-cjk);
@@ -534,14 +534,17 @@ button {
   border-bottom: 3px solid var(--rule);
   font-size: 0.98rem;
   line-height: 1.76;
+  overflow: hidden;
 }
 
 .markdown-body blockquote p {
   display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-columns: minmax(4.5rem, max-content) minmax(0, 1fr);
   column-gap: 0.36rem;
   margin-bottom: 0.56rem;
   text-align: left;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .markdown-body blockquote p:last-child {
@@ -555,6 +558,15 @@ button {
 
 .markdown-body blockquote p strong:first-child::after {
   content: "";
+}
+
+.markdown-body blockquote p:not(:has(strong:first-child)) {
+  display: block;
+}
+
+.markdown-body blockquote p:not(:has(strong:first-child))::first-line {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .markdown-body hr {
@@ -971,7 +983,7 @@ button {
     text-align: left;
   }
 
-  .markdown-body > p:first-of-type:not(blockquote + p)::first-letter {
+  .markdown-body > p:first-of-type::first-letter {
     font-size: 3.45rem;
   }
 
