@@ -304,7 +304,15 @@ export default function App() {
           </section>
 
           <div className="markdown-body">
-            <ReactMarkdown>{activePlan.content}</ReactMarkdown>
+            <ReactMarkdown
+              components={{
+                blockquote({ children }) {
+                  return <blockquote className="summary-box">{children}</blockquote>
+                },
+              }}
+            >
+              {activePlan.content}
+            </ReactMarkdown>
           </div>
         </article>
       </main>

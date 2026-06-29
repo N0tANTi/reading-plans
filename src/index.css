@@ -402,14 +402,14 @@ button {
   letter-spacing: 0.01em;
 }
 
-.markdown-body > p:first-of-type::first-letter {
+.markdown-body > p:first-of-type:not(blockquote + p)::first-letter {
   float: left;
   color: var(--accent);
   font-family: var(--serif-lat), var(--serif-cjk);
-  font-size: 4.75rem;
+  font-size: 4.35rem;
   font-weight: 900;
-  line-height: 0.78;
-  margin: 0.12rem 0.16rem 0 0;
+  line-height: 0.86;
+  margin: 0.18rem 0.18rem 0 0;
 }
 
 .markdown-body p {
@@ -527,17 +527,34 @@ button {
 .markdown-body blockquote {
   clear: both;
   margin: 1.7rem 0;
-  padding: 1.25rem 1.45rem;
+  padding: 1.15rem 1.45rem;
   color: var(--ink-2);
   background: var(--sheet-muted);
   border-top: 3px solid var(--rule);
   border-bottom: 3px solid var(--rule);
   font-size: 0.98rem;
-  line-height: 1.82;
+  line-height: 1.76;
+}
+
+.markdown-body blockquote p {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 0.36rem;
+  margin-bottom: 0.56rem;
+  text-align: left;
 }
 
 .markdown-body blockquote p:last-child {
   margin-bottom: 0;
+}
+
+.markdown-body blockquote p strong:first-child {
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.markdown-body blockquote p strong:first-child::after {
+  content: "";
 }
 
 .markdown-body hr {
@@ -875,9 +892,6 @@ button {
     margin-left: -44px;
     margin-right: -44px;
     padding: 1.35rem 1.65rem;
-    column-count: 2;
-    column-gap: 2rem;
-    column-rule: 1px solid var(--hairline-strong);
   }
 }
 
@@ -957,8 +971,17 @@ button {
     text-align: left;
   }
 
-  .markdown-body > p:first-of-type::first-letter {
-    font-size: 3.7rem;
+  .markdown-body > p:first-of-type:not(blockquote + p)::first-letter {
+    font-size: 3.45rem;
+  }
+
+  .markdown-body blockquote p {
+    display: block;
+  }
+
+  .markdown-body blockquote p strong:first-child {
+    display: block;
+    margin-bottom: 0.16rem;
   }
 
   .markdown-body h2 {
