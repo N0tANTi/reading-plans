@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 
 function parseFrontmatter(raw) {
-  const m = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/)
-  if (!m) return { meta: {}, content: raw }
+  const text = raw.replace(/^\uFEFF/, '')
+  const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/)
+  if (!m) return { meta: {}, content: text }
   const meta = {}
   m[1].split('\n').forEach(line => {
     const idx = line.indexOf(':')
@@ -22,23 +23,33 @@ const plans = Object.entries(mdModules)
   .map(([path, raw]) => {
     const { meta, content } = parseFrontmatter(raw)
     const filename = path.split('/').pop().replace('.md', '')
+    const order = parseInt(meta.order) || 999
     return {
       id: filename,
       title: meta.title || filename,
       subtitle: meta.subtitle || '',
       desc: meta.desc || '',
-      order: parseInt(meta.order) || 999,
+      order,
+      date: meta.date || '',
       content: stripLeadingH1(content),
     }
   })
   .sort((a, b) => a.order - b.order)
 
 const pad2 = (n) => String(n).padStart(2, '0')
-const issueDate = new Intl.DateTimeFormat('zh-CN', {
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-}).format(new Date())
+
+function formatIssueDate(plan) {
+  if (plan?.date) return plan.date.replaceAll('-', '/')
+  if (plan?.order > 1000000000000) {
+    return new Intl.DateTimeFormat('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(plan.order))
+  }
+  return 'Archive'
+}
 
 function UploadModal({ open, onClose }) {
   const [form, setForm] = useState({ title: '', subtitle: '', desc: '', filename: '', password: '' })
@@ -275,7 +286,7 @@ export default function App() {
           <header className="masthead">
             <div className="edition-line">
               <span>Personal Research Newspaper</span>
-              <span>{issueDate}</span>
+              <span>{formatIssueDate(activePlan)}</span>
               <span>Vol. {pad2(plans.length)}</span>
             </div>
             <div className="masthead-title">阅读计划</div>

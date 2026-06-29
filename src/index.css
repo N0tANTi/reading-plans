@@ -16,8 +16,8 @@
   --shadow: 0 18px 50px rgb(17 24 39 / 0.08);
   --sidebar-w: 322px;
   --content-max: 920px;
-  --serif-cjk: 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
-  --serif-lat: 'Spectral', Georgia, 'Times New Roman', serif;
+  --serif-cjk: 'Noto Serif SC', 'Noto Serif', 'Songti SC', 'SimSun', serif;
+  --serif-lat: 'Spectral', 'Noto Serif', Georgia, 'Times New Roman', serif;
   --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   --t: 180ms ease;
 }
@@ -220,10 +220,10 @@ button {
 
 .nav-sub {
   color: var(--ink-3);
-  font-family: var(--serif-lat);
-  font-size: 0.86rem;
-  font-style: italic;
-  line-height: 1.35;
+  font-family: var(--serif-cjk);
+  font-size: 0.82rem;
+  font-style: normal;
+  line-height: 1.45;
 }
 
 .nav-desc {

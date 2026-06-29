@@ -4,6 +4,7 @@ subtitle: 阿伦特与行动理论
 icon: 🏛
 desc: The Human Condition · 诞生性 · 计算性思考
 order: 1
+date: 2026-06-16
 ---
 
 # 政治哲学：阿伦特与行动理论

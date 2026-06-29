@@ -24,12 +24,19 @@ export default async function handler(req, res) {
   const order = Date.now(); // ensures new plans appear at the end
 
   // Build MD file with frontmatter
+  const uploadedDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(order));
   const fileContent = `---
 title: ${title}
 subtitle: ${subtitle || ''}
 icon: ${icon || '📖'}
 desc: ${desc || ''}
 order: ${order}
+date: ${uploadedDate}
 ---
 
 ${content}`;
