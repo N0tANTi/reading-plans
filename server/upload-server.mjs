@@ -1,5 +1,5 @@
 import http from 'node:http'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { access, mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -63,17 +63,7 @@ function run(command, args, options = {}) {
   })
 }
 
-async function redeploySite() {
-  if (process.env.SKIP_REDEPLOY === '1') return
-  await run('npm', ['run', 'build'])
-}
-
-function queueRedeploy() {
-  redeployChain = redeployChain.then(redeploySite, redeploySite)
-  return redeployChain
-}
-
-async function createGithubFile(payload) {
+function buildMarkdownFile(payload) {
   const { filename, content, title, subtitle, icon, desc } = payload
   const safeName = filename.replace(/[^\w\u4e00-\u9fff-]/g, '_')
   const order = Date.now()
@@ -84,7 +74,9 @@ async function createGithubFile(payload) {
     day: '2-digit',
   }).format(new Date(order))
 
-  const fileContent = `---
+  return {
+    filePath: `src/data/${safeName}.md`,
+    fileContent: `---
 title: ${title}
 subtitle: ${subtitle || ''}
 icon: ${icon || ''}
@@ -93,11 +85,53 @@ order: ${order}
 date: ${uploadedDate}
 ---
 
-${content}`
+${content}`,
+  }
+}
 
+function resolveDataFile(filePath) {
+  const absolutePath = path.resolve(appDir, filePath)
+  const dataDir = path.resolve(appDir, 'src/data')
+  if (!absolutePath.startsWith(`${dataDir}${path.sep}`)) {
+    throw new Error('文件路径不安全')
+  }
+  return { absolutePath, dataDir }
+}
+
+async function ensureNewLocalFile(filePath) {
+  const { absolutePath } = resolveDataFile(filePath)
+  try {
+    await access(absolutePath)
+    const err = new Error(`文件 ${path.basename(filePath)} 已存在，请换一个文件名`)
+    err.statusCode = 409
+    throw err
+  } catch (err) {
+    if (err.code === 'ENOENT') return
+    throw err
+  }
+}
+
+async function writeLocalMarkdown({ filePath, fileContent }) {
+  const { absolutePath, dataDir } = resolveDataFile(filePath)
+  await mkdir(dataDir, { recursive: true })
+  await writeFile(absolutePath, fileContent, 'utf8')
+}
+
+async function redeploySite() {
+  if (process.env.SKIP_REDEPLOY === '1') return
+  await run('npm', ['run', 'build'])
+}
+
+function queueRedeploy() {
+  redeployChain = redeployChain.then(redeploySite, redeploySite)
+  return redeployChain
+}
+
+async function backupToGithub({ filePath, fileContent, title }) {
   const repo = process.env.GITHUB_REPO
   const token = process.env.GITHUB_TOKEN
-  const filePath = `src/data/${safeName}.md`
+  if (!repo || !token) return { skipped: true }
+
   const encoded = Buffer.from(fileContent).toString('base64')
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -107,14 +141,10 @@ ${content}`
   }
 
   const checkRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, { headers })
-  if (checkRes.ok) {
-    const err = new Error(`文件 ${safeName}.md 已存在，请换一个文件名`)
-    err.statusCode = 409
-    throw err
-  }
+  if (checkRes.ok) return { skipped: false, warning: 'GitHub 已有同名文件，本次只更新了服务器本地。' }
   if (checkRes.status !== 404) {
     const detail = await checkRes.text()
-    throw new Error(`GitHub 文件检查失败：${detail}`)
+    return { skipped: false, warning: `GitHub 备份检查失败：${detail}` }
   }
 
   const createRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
@@ -128,20 +158,10 @@ ${content}`
 
   if (!createRes.ok) {
     const detail = await createRes.text()
-    throw new Error(`GitHub 文件创建失败：${detail}`)
+    return { skipped: false, warning: `GitHub 备份失败：${detail}` }
   }
 
-  return { filePath, fileContent }
-}
-
-async function writeLocalMarkdown({ filePath, fileContent }) {
-  const absolutePath = path.resolve(appDir, filePath)
-  const dataDir = path.resolve(appDir, 'src/data')
-  if (!absolutePath.startsWith(`${dataDir}${path.sep}`)) {
-    throw new Error('文件路径不安全')
-  }
-  await mkdir(dataDir, { recursive: true })
-  await writeFile(absolutePath, fileContent, 'utf8')
+  return { skipped: false }
 }
 
 async function handleUpload(req, res) {
@@ -154,14 +174,20 @@ async function handleUpload(req, res) {
   if (!filename || !content || !title) {
     return sendJson(res, 400, { error: '请填写文件名、标题，并选择 Markdown 文件' })
   }
-  if (!process.env.GITHUB_TOKEN || !process.env.GITHUB_REPO) {
-    return sendJson(res, 500, { error: '服务器还没有配置 GitHub Token' })
-  }
 
-  const localFile = await createGithubFile(payload)
-  await writeLocalMarkdown(localFile)
+  const markdownFile = buildMarkdownFile(payload)
+  await ensureNewLocalFile(markdownFile.filePath)
+  await writeLocalMarkdown(markdownFile)
   await queueRedeploy()
-  return sendJson(res, 200, { success: true, message: '上传成功，页面已更新。刷新后即可看到新栏目。' })
+
+  const backup = await backupToGithub({ ...markdownFile, title })
+  const message = backup.warning
+    ? `上传成功，页面已更新。${backup.warning}`
+    : backup.skipped
+      ? '上传成功，页面已更新。当前未配置 GitHub 备份。'
+      : '上传成功，页面已更新，并已备份到 GitHub。'
+
+  return sendJson(res, 200, { success: true, message })
 }
 
 const server = http.createServer(async (req, res) => {
