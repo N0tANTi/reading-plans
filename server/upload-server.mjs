@@ -1,4 +1,5 @@
 import http from 'node:http'
+import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -64,8 +65,6 @@ function run(command, args, options = {}) {
 
 async function redeploySite() {
   if (process.env.SKIP_REDEPLOY === '1') return
-  await run('git', ['pull', '--ff-only'])
-  await run('npm', ['install'])
   await run('npm', ['run', 'build'])
 }
 
@@ -131,6 +130,18 @@ ${content}`
     const detail = await createRes.text()
     throw new Error(`GitHub 文件创建失败：${detail}`)
   }
+
+  return { filePath, fileContent }
+}
+
+async function writeLocalMarkdown({ filePath, fileContent }) {
+  const absolutePath = path.resolve(appDir, filePath)
+  const dataDir = path.resolve(appDir, 'src/data')
+  if (!absolutePath.startsWith(`${dataDir}${path.sep}`)) {
+    throw new Error('文件路径不安全')
+  }
+  await mkdir(dataDir, { recursive: true })
+  await writeFile(absolutePath, fileContent, 'utf8')
 }
 
 async function handleUpload(req, res) {
@@ -147,7 +158,8 @@ async function handleUpload(req, res) {
     return sendJson(res, 500, { error: '服务器还没有配置 GitHub Token' })
   }
 
-  await createGithubFile(payload)
+  const localFile = await createGithubFile(payload)
+  await writeLocalMarkdown(localFile)
   await queueRedeploy()
   return sendJson(res, 200, { success: true, message: '上传成功，页面已更新。刷新后即可看到新栏目。' })
 }
