@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 function parseFrontmatter(raw) {
   const text = raw.replace(/^\uFEFF/, '')
@@ -305,6 +306,7 @@ export default function App() {
 
           <div className="markdown-body">
             <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
               components={{
                 blockquote({ children }) {
                   return <blockquote className="summary-box">{children}</blockquote>
