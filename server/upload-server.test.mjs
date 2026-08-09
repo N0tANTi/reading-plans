@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { replaceMarkdownBody, syncToGithub } from './upload-server.mjs'
+import { replaceMarkdownBody, syncToGithub } from './upload-utils.mjs'
 
 test('replaces only the Markdown body and preserves frontmatter exactly', () => {
   const original = `---
