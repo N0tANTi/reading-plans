@@ -107,7 +107,10 @@ function UploadModal({ onClose, initialMode, initialPlanId }) {
       })
       const data = await res.json()
       if (res.ok) {
-        setStatus({ type: 'success', msg: data.message || `${isReplace ? '更新' : '上传'}成功，刷新页面即可看到。` })
+        setStatus({
+          type: data.warning ? 'warning' : 'success',
+          msg: data.message || `${isReplace ? '更新' : '上传'}成功，刷新页面即可看到。`,
+        })
         setForm({ title: '', subtitle: '', desc: '', filename: '', password: form.password })
         setFileContent('')
         setFileName('')

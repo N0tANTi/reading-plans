@@ -61,3 +61,30 @@ test('updates an existing GitHub file with its current sha', async () => {
     else process.env.GITHUB_TOKEN = originalToken
   }
 })
+
+test('turns invalid GitHub credentials into a safe non-blocking warning', async () => {
+  const originalFetch = globalThis.fetch
+  const originalRepo = process.env.GITHUB_REPO
+  const originalToken = process.env.GITHUB_TOKEN
+  process.env.GITHUB_REPO = 'owner/repo'
+  process.env.GITHUB_TOKEN = 'invalid-token'
+  globalThis.fetch = async () => ({ ok: false, status: 401 })
+
+  try {
+    const result = await syncToGithub({
+      filePath: 'src/data/essay.md',
+      fileContent: 'updated',
+      title: 'Essay',
+    }, 'replace')
+
+    assert.equal(result.skipped, false)
+    assert.match(result.warning, /凭据已失效/)
+    assert.doesNotMatch(result.warning, /Bad credentials|documentation_url/)
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalRepo === undefined) delete process.env.GITHUB_REPO
+    else process.env.GITHUB_REPO = originalRepo
+    if (originalToken === undefined) delete process.env.GITHUB_TOKEN
+    else process.env.GITHUB_TOKEN = originalToken
+  }
+})

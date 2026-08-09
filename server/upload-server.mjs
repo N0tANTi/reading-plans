@@ -173,16 +173,19 @@ async function handleUpload(req, res) {
     ? await buildReplacementFile(filename, content)
     : buildMarkdownFile(payload)
   if (mode === 'create') await ensureNewLocalFile(markdownFile.filePath)
-  const backup = await syncToGithub(markdownFile, mode)
+  let backup
+  if (mode === 'create') backup = await syncToGithub(markdownFile, mode)
   await writeLocalMarkdown(markdownFile)
   await queueRedeploy()
+  if (mode === 'replace') backup = await syncToGithub(markdownFile, mode)
 
   const action = mode === 'replace' ? '更新' : '上传'
-  const message = backup.skipped
-    ? `${action}成功，页面已更新。当前未配置 GitHub 同步。`
+  const warning = Boolean(backup.warning || backup.skipped)
+  const message = warning
+    ? `${action}成功，页面已更新。${backup.warning}`
     : `${action}成功，页面已更新，并已同步到 GitHub。`
 
-  return sendJson(res, 200, { success: true, message })
+  return sendJson(res, 200, { success: true, warning, message })
 }
 
 const server = http.createServer(async (req, res) => {
