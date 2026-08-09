@@ -1,5 +1,5 @@
 import http from 'node:http'
-import { access, mkdir, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -89,6 +89,16 @@ ${content}`,
   }
 }
 
+export function replaceMarkdownBody(raw, content) {
+  const match = raw.match(/^(\uFEFF?---\r?\n[\s\S]*?\r?\n---\r?\n)[\s\S]*$/)
+  if (!match) {
+    const err = new Error('现有稿件缺少有效的 frontmatter，无法安全替换正文')
+    err.statusCode = 422
+    throw err
+  }
+  return `${match[1]}\n${content.replace(/^\s+/, '')}`
+}
+
 function resolveDataFile(filePath) {
   const absolutePath = path.resolve(appDir, filePath)
   const dataDir = path.resolve(appDir, 'src/data')
@@ -111,6 +121,29 @@ async function ensureNewLocalFile(filePath) {
   }
 }
 
+async function buildReplacementFile(filename, content) {
+  const safeName = filename.replace(/[^\w\u4e00-\u9fff-]/g, '_')
+  const filePath = `src/data/${safeName}.md`
+  const { absolutePath } = resolveDataFile(filePath)
+
+  try {
+    const current = await readFile(absolutePath, 'utf8')
+    const title = current.match(/^title:\s*(.+)$/m)?.[1]?.trim() || safeName
+    return {
+      filePath,
+      fileContent: replaceMarkdownBody(current, content),
+      title,
+    }
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      const notFound = new Error(`找不到栏目 ${safeName}，请刷新页面后重试`)
+      notFound.statusCode = 404
+      throw notFound
+    }
+    throw err
+  }
+}
+
 async function writeLocalMarkdown({ filePath, fileContent }) {
   const { absolutePath, dataDir } = resolveDataFile(filePath)
   await mkdir(dataDir, { recursive: true })
@@ -127,7 +160,7 @@ function queueRedeploy() {
   return redeployChain
 }
 
-async function backupToGithub({ filePath, fileContent, title }) {
+export async function syncToGithub({ filePath, fileContent, title }, mode) {
   const repo = process.env.GITHUB_REPO
   const token = process.env.GITHUB_TOKEN
   if (!repo || !token) return { skipped: true }
@@ -141,24 +174,40 @@ async function backupToGithub({ filePath, fileContent, title }) {
   }
 
   const checkRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, { headers })
-  if (checkRes.ok) return { skipped: false, warning: 'GitHub 已有同名文件，本次只更新了服务器本地。' }
+  let existingSha = ''
+  if (checkRes.ok) {
+    const existing = await checkRes.json()
+    existingSha = existing.sha || ''
+    if (mode === 'create') {
+      const err = new Error(`文件 ${path.basename(filePath)} 已存在，请换一个文件名`)
+      err.statusCode = 409
+      throw err
+    }
+  }
   if (checkRes.status !== 404) {
-    const detail = await checkRes.text()
-    return { skipped: false, warning: `GitHub 备份检查失败：${detail}` }
+    if (!checkRes.ok) {
+      const detail = await checkRes.text()
+      const err = new Error(`GitHub 同步检查失败：${detail}`)
+      err.statusCode = 502
+      throw err
+    }
   }
 
-  const createRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
+  const saveRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
     method: 'PUT',
     headers,
     body: JSON.stringify({
-      message: `新增阅读计划: ${title}`,
+      message: `${mode === 'replace' ? '更新' : '新增'}阅读计划: ${title}`,
       content: encoded,
+      ...(existingSha ? { sha: existingSha } : {}),
     }),
   })
 
-  if (!createRes.ok) {
-    const detail = await createRes.text()
-    return { skipped: false, warning: `GitHub 备份失败：${detail}` }
+  if (!saveRes.ok) {
+    const detail = await saveRes.text()
+    const err = new Error(`GitHub 同步失败：${detail}`)
+    err.statusCode = 502
+    throw err
   }
 
   return { skipped: false }
@@ -166,26 +215,34 @@ async function backupToGithub({ filePath, fileContent, title }) {
 
 async function handleUpload(req, res) {
   const payload = await readJsonBody(req)
-  const { password, filename, content, title } = payload
+  const { password, filename, content, title, mode = 'create' } = payload
 
   if (!password || password !== process.env.UPLOAD_PASSWORD) {
     return sendJson(res, 401, { error: '密码错误' })
   }
-  if (!filename || !content || !title) {
-    return sendJson(res, 400, { error: '请填写文件名、标题，并选择 Markdown 文件' })
+  if (!['create', 'replace'].includes(mode)) {
+    return sendJson(res, 400, { error: '不支持的操作类型' })
+  }
+  if (!filename || !content || (mode === 'create' && !title)) {
+    return sendJson(res, 400, {
+      error: mode === 'replace'
+        ? '请选择要更新的栏目和新版 Markdown 文件'
+        : '请填写文件名、标题，并选择 Markdown 文件',
+    })
   }
 
-  const markdownFile = buildMarkdownFile(payload)
-  await ensureNewLocalFile(markdownFile.filePath)
+  const markdownFile = mode === 'replace'
+    ? await buildReplacementFile(filename, content)
+    : buildMarkdownFile(payload)
+  if (mode === 'create') await ensureNewLocalFile(markdownFile.filePath)
+  const backup = await syncToGithub(markdownFile, mode)
   await writeLocalMarkdown(markdownFile)
   await queueRedeploy()
 
-  const backup = await backupToGithub({ ...markdownFile, title })
-  const message = backup.warning
-    ? `上传成功，页面已更新。${backup.warning}`
-    : backup.skipped
-      ? '上传成功，页面已更新。当前未配置 GitHub 备份。'
-      : '上传成功，页面已更新，并已备份到 GitHub。'
+  const action = mode === 'replace' ? '更新' : '上传'
+  const message = backup.skipped
+    ? `${action}成功，页面已更新。当前未配置 GitHub 同步。`
+    : `${action}成功，页面已更新，并已同步到 GitHub。`
 
   return sendJson(res, 200, { success: true, message })
 }
@@ -202,6 +259,8 @@ const server = http.createServer(async (req, res) => {
   }
 })
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(`reading-plans upload server listening on http://127.0.0.1:${port}`)
-})
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  server.listen(port, '127.0.0.1', () => {
+    console.log(`reading-plans upload server listening on http://127.0.0.1:${port}`)
+  })
+}

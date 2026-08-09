@@ -52,19 +52,33 @@ function formatIssueDate(plan) {
   return 'Archive'
 }
 
-function UploadModal({ open, onClose }) {
+function UploadModal({ onClose, initialMode, initialPlanId }) {
+  const [mode, setMode] = useState(initialMode)
   const [form, setForm] = useState({ title: '', subtitle: '', desc: '', filename: '', password: '' })
+  const [selectedId, setSelectedId] = useState(initialPlanId)
   const [fileContent, setFileContent] = useState('')
   const [fileName, setFileName] = useState('')
   const [status, setStatus] = useState({ type: '', msg: '' })
   const [loading, setLoading] = useState(false)
   const fileRef = useRef()
+  const isReplace = mode === 'replace'
+  const selectedPlan = plans.find(plan => plan.id === selectedId) || plans[0]
+
+  const switchMode = (nextMode) => {
+    setMode(nextMode)
+    setFileContent('')
+    setFileName('')
+    setStatus({ type: '', msg: '' })
+    if (fileRef.current) fileRef.current.value = ''
+  }
 
   const handleFile = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
     setFileName(file.name)
-    setForm(f => ({ ...f, filename: file.name.replace(/\.md$/i, '') }))
+    if (!isReplace) {
+      setForm(f => ({ ...f, filename: file.name.replace(/\.md$/i, '') }))
+    }
     const reader = new FileReader()
     reader.onload = (ev) => {
       let text = ev.target.result
@@ -77,19 +91,23 @@ function UploadModal({ open, onClose }) {
 
   const handleSubmit = async () => {
     if (!fileContent) return setStatus({ type: 'error', msg: '请选择一个 .md 文件' })
-    if (!form.title) return setStatus({ type: 'error', msg: '请填写标题' })
+    if (isReplace && !selectedId) return setStatus({ type: 'error', msg: '请选择要更新的栏目' })
+    if (!isReplace && !form.title) return setStatus({ type: 'error', msg: '请填写标题' })
     if (!form.password) return setStatus({ type: 'error', msg: '请输入上传密码' })
     setLoading(true)
     setStatus({ type: '', msg: '' })
     try {
-      const res = await fetch('/api/upload', {
+      const payload = isReplace
+        ? { mode, filename: selectedId, password: form.password, content: fileContent }
+        : { ...form, mode, icon: '', content: fileContent }
+      const res = await fetch('/gazette/api/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, icon: '', content: fileContent }),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
       if (res.ok) {
-        setStatus({ type: 'success', msg: data.message || '上传成功，约 1 分钟后刷新页面即可看到。' })
+        setStatus({ type: 'success', msg: data.message || `${isReplace ? '更新' : '上传'}成功，刷新页面即可看到。` })
         setForm({ title: '', subtitle: '', desc: '', filename: '', password: form.password })
         setFileContent('')
         setFileName('')
@@ -104,70 +122,115 @@ function UploadModal({ open, onClose }) {
     }
   }
 
-  if (!open) return null
-
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <div className="modal-mark">Editorial Desk</div>
-            <h2 className="modal-title">新增阅读栏目</h2>
+            <div className="modal-mark">Editorial Desk · Revision Control</div>
+            <h2 className="modal-title">{isReplace ? '更新现有栏目' : '新增阅读栏目'}</h2>
           </div>
           <button className="modal-close" onClick={onClose} aria-label="关闭">×</button>
         </div>
 
         <div className="modal-body">
+          <div className="editor-mode" role="tablist" aria-label="稿件操作">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={!isReplace}
+              className={`editor-mode-tab ${!isReplace ? 'active' : ''}`}
+              onClick={() => switchMode('create')}
+            >
+              新增栏目
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={isReplace}
+              className={`editor-mode-tab ${isReplace ? 'active' : ''}`}
+              onClick={() => switchMode('replace')}
+            >
+              更新正文
+            </button>
+          </div>
+
+          {isReplace && (
+            <>
+              <div className="form-group">
+                <label className="form-label" htmlFor="replace-plan">选择现有栏目 *</label>
+                <select
+                  id="replace-plan"
+                  className="form-input form-select"
+                  value={selectedId}
+                  onChange={e => setSelectedId(e.target.value)}
+                >
+                  {plans.map(plan => <option key={plan.id} value={plan.id}>{plan.title}</option>)}
+                </select>
+              </div>
+              <div className="revision-card">
+                <span className="revision-card-label">Protected metadata</span>
+                <strong>{selectedPlan?.title}</strong>
+                <code>src/data/{selectedPlan?.id}.md</code>
+                <p>本次只替换正文；标题、副标题、文件名、发布日期和栏目顺序保持不变。</p>
+              </div>
+            </>
+          )}
+
           <div className="form-group">
-            <label className="form-label">Markdown 稿件</label>
+            <label className="form-label">{isReplace ? '新版 Markdown 稿件 *' : 'Markdown 稿件 *'}</label>
             <input type="file" accept=".md" ref={fileRef} onChange={handleFile} className="form-file" />
             {fileName && <div className="form-hint">已选择：{fileName}</div>}
           </div>
 
-          <div className="form-group">
-            <label className="form-label">栏目标题 *</label>
-            <input
-              type="text"
-              placeholder="如：政治哲学"
-              value={form.title}
-              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-              className="form-input"
-            />
-          </div>
+          {!isReplace && (
+            <>
+              <div className="form-group">
+                <label className="form-label">栏目标题 *</label>
+                <input
+                  type="text"
+                  placeholder="如：政治哲学"
+                  value={form.title}
+                  onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                  className="form-input"
+                />
+              </div>
 
-          <div className="form-group">
-            <label className="form-label">副标题</label>
-            <input
-              type="text"
-              placeholder="如：阿伦特与行动理论"
-              value={form.subtitle}
-              onChange={e => setForm(f => ({ ...f, subtitle: e.target.value }))}
-              className="form-input"
-            />
-          </div>
+              <div className="form-group">
+                <label className="form-label">副标题</label>
+                <input
+                  type="text"
+                  placeholder="如：阿伦特与行动理论"
+                  value={form.subtitle}
+                  onChange={e => setForm(f => ({ ...f, subtitle: e.target.value }))}
+                  className="form-input"
+                />
+              </div>
 
-          <div className="form-group">
-            <label className="form-label">索引词</label>
-            <input
-              type="text"
-              placeholder="用 · 分隔"
-              value={form.desc}
-              onChange={e => setForm(f => ({ ...f, desc: e.target.value }))}
-              className="form-input"
-            />
-          </div>
+              <div className="form-group">
+                <label className="form-label">索引词</label>
+                <input
+                  type="text"
+                  placeholder="用 · 分隔"
+                  value={form.desc}
+                  onChange={e => setForm(f => ({ ...f, desc: e.target.value }))}
+                  className="form-input"
+                />
+              </div>
 
-          <div className="form-group">
-            <label className="form-label">文件名（英文）</label>
-            <input
-              type="text"
-              placeholder="自动从文件名生成"
-              value={form.filename}
-              onChange={e => setForm(f => ({ ...f, filename: e.target.value }))}
-              className="form-input"
-            />
-            <div className="form-hint">src/data/{form.filename || '...'}.md</div>
-          </div>
+              <div className="form-group">
+                <label className="form-label">文件名（英文）</label>
+                <input
+                  type="text"
+                  placeholder="自动从文件名生成"
+                  value={form.filename}
+                  onChange={e => setForm(f => ({ ...f, filename: e.target.value }))}
+                  className="form-input"
+                />
+                <div className="form-hint">src/data/{form.filename || '...'}.md</div>
+              </div>
+            </>
+          )}
 
           <div className="form-group">
             <label className="form-label">上传密码 *</label>
@@ -186,7 +249,7 @@ function UploadModal({ open, onClose }) {
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>取消</button>
           <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
-            {loading ? '送印中' : '提交栏目'}
+            {loading ? '送印中' : isReplace ? '替换正文' : '提交栏目'}
           </button>
         </div>
       </div>
@@ -205,6 +268,7 @@ export default function App() {
   })
   const [showTop, setShowTop] = useState(false)
   const [showUpload, setShowUpload] = useState(false)
+  const [uploadMode, setUploadMode] = useState('create')
 
   const activeIndex = Math.max(0, plans.findIndex(p => p.id === activeId))
   const activePlan = plans[activeIndex] || plans[0]
@@ -224,6 +288,11 @@ export default function App() {
     setActiveId(id)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [])
+
+  const openEditor = (mode) => {
+    setUploadMode(mode)
+    setShowUpload(true)
+  }
 
   return (
     <div className="app">
@@ -248,9 +317,13 @@ export default function App() {
               </span>
             </button>
           ))}
-          <button className="nav-add" onClick={() => setShowUpload(true)}>
+          <button className="nav-add" onClick={() => openEditor('create')}>
             <span className="nav-number">+</span>
             <span className="nav-label">新增栏目</span>
+          </button>
+          <button className="nav-add nav-revise" onClick={() => openEditor('replace')}>
+            <span className="nav-number">↻</span>
+            <span className="nav-label">更新栏目</span>
           </button>
         </nav>
         <div className="sidebar-footer">
@@ -265,7 +338,8 @@ export default function App() {
         <div className="mobile-bar">
           <span className="mobile-title">阅读计划</span>
           <div className="mobile-actions">
-            <button className="mobile-btn" onClick={() => setShowUpload(true)} aria-label="新增栏目">+</button>
+            <button className="mobile-btn" onClick={() => openEditor('create')} aria-label="新增栏目">+</button>
+            <button className="mobile-btn" onClick={() => openEditor('replace')} aria-label="更新栏目">↻</button>
             <button className="mobile-btn" onClick={() => setDark(d => !d)}>{dark ? '夜' : '日'}</button>
           </div>
         </div>
@@ -327,7 +401,13 @@ export default function App() {
         ↑
       </button>
 
-      <UploadModal open={showUpload} onClose={() => setShowUpload(false)} />
+      {showUpload && (
+        <UploadModal
+          onClose={() => setShowUpload(false)}
+          initialMode={uploadMode}
+          initialPlanId={activeId}
+        />
+      )}
     </div>
   )
 }
