@@ -551,35 +551,28 @@ button {
 }
 
 .markdown-body blockquote p {
-  display: grid;
-  grid-template-columns: minmax(4.5rem, max-content) minmax(0, 1fr);
-  column-gap: 0.36rem;
+  display: block;
   margin-bottom: 0.56rem;
   text-align: left;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
+.markdown-body blockquote p.summary-label-row {
+  display: block;
+}
+
 .markdown-body blockquote p:last-child {
   margin-bottom: 0;
 }
 
-.markdown-body blockquote p strong:first-child {
+.markdown-body blockquote p.summary-label-row > strong:first-child {
   color: var(--accent);
-  white-space: nowrap;
+  margin-right: 0.28em;
 }
 
-.markdown-body blockquote p strong:first-child::after {
+.markdown-body blockquote p.summary-label-row > strong:first-child::after {
   content: "";
-}
-
-.markdown-body blockquote p:not(:has(strong:first-child)) {
-  display: block;
-}
-
-.markdown-body blockquote p:not(:has(strong:first-child))::first-line {
-  color: var(--accent);
-  font-weight: 700;
 }
 
 .markdown-body hr {
@@ -1081,15 +1074,6 @@ button {
 
   .markdown-body > p:first-of-type::first-letter {
     font-size: 3.45rem;
-  }
-
-  .markdown-body blockquote p {
-    display: block;
-  }
-
-  .markdown-body blockquote p strong:first-child {
-    display: block;
-    margin-bottom: 0.16rem;
   }
 
   .markdown-body h2 {

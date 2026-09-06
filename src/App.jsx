@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { Children, isValidElement, useState, useEffect, useCallback, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -387,6 +387,11 @@ export default function App() {
               components={{
                 blockquote({ children }) {
                   return <blockquote className="summary-box">{children}</blockquote>
+                },
+                p({ children }) {
+                  const firstChild = Children.toArray(children)[0]
+                  const startsWithStrong = isValidElement(firstChild) && firstChild.type === 'strong'
+                  return <p className={startsWithStrong ? 'summary-label-row' : undefined}>{children}</p>
                 },
               }}
             >
