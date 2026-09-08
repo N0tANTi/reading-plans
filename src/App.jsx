@@ -31,11 +31,12 @@ const plans = Object.entries(mdModules)
       subtitle: meta.subtitle || '',
       desc: meta.desc || '',
       order,
+      uploadedAt: order > 1000000000000 ? order : Date.parse(meta.date || '') || 0,
       date: meta.date || '',
       content: stripLeadingH1(content),
     }
   })
-  .sort((a, b) => a.order - b.order)
+  .sort((a, b) => b.uploadedAt - a.uploadedAt || a.order - b.order)
 
 const pad2 = (n) => String(n).padStart(2, '0')
 
@@ -288,6 +289,8 @@ export default function App() {
   const [fontSize, setFontSize] = useState(18)
   const [focus, setFocus] = useState(false)
   const [headings, setHeadings] = useState([])
+  const [currentHeading, setCurrentHeading] = useState('')
+  const directoryRef = useRef(null)
   const articleRef = useRef(null)
   const [showUpload, setShowUpload] = useState(false)
   const [uploadMode, setUploadMode] = useState('create')
@@ -305,7 +308,28 @@ export default function App() {
     nodes.forEach((node, index) => { node.id = 'section-' + index })
     setHeadings(nodes.map(node => ({ id: node.id, title: node.textContent, level: node.tagName })))
     document.title = activePlan.title + ' · 阅读计划'
+    const updateHeading = () => {
+      const current = nodes.filter(node => node.getBoundingClientRect().top <= window.innerHeight * 0.3).at(-1) || nodes[0]
+      setCurrentHeading(current?.id || '')
+    }
+    const observer = new IntersectionObserver(updateHeading, { rootMargin: '0px 0px -70% 0px', threshold: [0, 1] })
+    nodes.forEach(node => observer.observe(node))
+    updateHeading()
+    const target = nodes.find(node => '#' + node.id === location.hash)
+    if (target) target.scrollIntoView()
+    return () => observer.disconnect()
   }, [activePlan])
+
+  useEffect(() => {
+    const list = directoryRef.current
+    const active = list?.querySelector('[aria-current="location"]')
+    if (!active) return
+    const itemRect = active.getBoundingClientRect()
+    const listRect = list.getBoundingClientRect()
+    if (itemRect.top < listRect.top || itemRect.bottom > listRect.bottom) {
+      list.scrollTop += itemRect.top - listRect.top - list.clientHeight / 3
+    }
+  }, [currentHeading])
 
   useEffect(() => {
     const restore = () => {
@@ -337,7 +361,7 @@ export default function App() {
         <div className="sidebar-header">
           <div className="sidebar-kicker">The Reading Gazette</div>
           <div className="sidebar-title">阅读计划</div>
-          <div className="sidebar-sub">Index of Columns</div>
+          <div className="upload-order">最新上传在前</div>
         </div>
         <div className="column-search"><label htmlFor="column-search">查找栏目</label><input id="column-search" type="search" placeholder="标题、作者或关键词" value={query} onChange={e => setQuery(e.target.value)} /></div>
         <nav className="sidebar-nav">
@@ -399,19 +423,9 @@ export default function App() {
       <main className="main">
         <div className="reading-toolbar"><a href="/">Archein ↗</a><div><button onClick={() => setFontSize(n => Math.max(16, n - 1))} disabled={fontSize <= 16} aria-label="缩小字号">A−</button><span aria-live="polite">{fontSize}</span><button onClick={() => setFontSize(n => Math.min(24, n + 1))} disabled={fontSize >= 24} aria-label="增大字号">A＋</button><button aria-pressed={focus} onClick={() => setFocus(v => !v)}>{focus ? '退出专注' : '专注阅读'}</button></div></div>
         <article className="content">
-          <header className="masthead">
-            <div className="edition-line">
-              <span>PERSONAL RESEARCH ARCHIVE</span>
-              <span>{formatIssueDate(activePlan)}</span>
-              <span>{plans.length} 个阅读栏目</span>
-            </div>
-            <div className="masthead-title">阅读计划</div>
-            <div className="masthead-subtitle">THE READING GAZETTE</div>
-          </header>
-
           <section className="article-head">
             <div className="article-meta">
-              <span>Column No. {pad2(activeIndex + 1)}</span>
+              <span>{formatIssueDate(activePlan)}</span>
               <span>约 {Math.max(1, Math.ceil(activePlan.content.length / 500))} 分钟阅读</span>
             </div>
             <h1 className="plan-title">{activePlan.title}</h1>
@@ -419,7 +433,7 @@ export default function App() {
             {activePlan.desc && <p className="plan-keywords">{activePlan.desc}</p>}
           </section>
 
-          <details className="article-directory" key={activeId}><summary>文章目录 <span>{headings.length} 个章节</span></summary><nav aria-label="文章目录">{headings.map(h => <a key={h.id} className={h.level === 'H3' ? 'subheading' : ''} href={'#' + h.id}>{h.title}</a>)}</nav></details>
+          <details className="article-directory" key={activeId}><summary>文章目录 <span>{headings.length} 个章节</span></summary><nav aria-label="文章目录">{headings.map(h => <a key={h.id} aria-current={currentHeading === h.id ? 'location' : undefined} className={h.level === 'H3' ? 'subheading' : ''} href={'#' + h.id}>{h.title}</a>)}</nav></details>
           <div className="markdown-body" id="reading-content" tabIndex={-1} ref={articleRef}>
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
@@ -439,6 +453,10 @@ export default function App() {
           </div>
           <footer className="reading-footer"><span>THE READING GAZETTE</span>{activeIndex < plans.length - 1 && <button onClick={() => switchPlan(plans[activeIndex + 1].id)}>下一栏目：{plans[activeIndex + 1].title} →</button>}</footer>
         </article>
+        <aside className="reading-outline" aria-label="常驻文章目录">
+          <div className="outline-title"><span>文章目录</span><span>{headings.length}</span></div>
+          <nav ref={directoryRef} aria-label="章节导航">{headings.map(h => <a key={h.id} aria-current={currentHeading === h.id ? 'location' : undefined} className={h.level === 'H3' ? 'subheading' : ''} href={'#' + h.id}>{h.title}</a>)}</nav>
+        </aside>
       </main>
 
       <button

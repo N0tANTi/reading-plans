@@ -10,3 +10,7 @@ createRoot(document.getElementById('root')).render(
 )
 
 import './editorial.css'
+import '@fontsource-variable/playfair-display/wght.css'
+import '@fontsource-variable/playfair-display/wght-italic.css'
+import '@fontsource-variable/albert-sans/wght.css'
+import './reading-layout.css'
