@@ -17,3 +17,15 @@ html{scroll-behavior:smooth}
 .focus-reading .reading-outline{display:block;position:fixed;top:100px;right:18px;width:88px;margin:0}.focus-reading .outline-open .reading-outline{width:240px}
 @media(max-width:768px){.reading-outline,.focus-reading .reading-outline{top:auto;bottom:84px;z-index:40}.outline-open .reading-outline{max-height:calc(100dvh - 180px)}.reading-outline nav{max-height:calc(100dvh - 300px)}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* Native scroll controls follow the paper palette, including Windows dark mode. */
+:root{color-scheme:light;--scroll-thumb:#c0c3b9;--scroll-thumb-hover:#8b9181}
+[data-theme=dark]{color-scheme:dark;--scroll-thumb:#4b5044;--scroll-thumb-hover:#858e77}
+html,.sidebar-nav,.reading-outline nav,.article-directory nav{scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) transparent}
+.sidebar-nav:hover,.sidebar-nav:focus-within,.reading-outline nav:hover,.reading-outline nav:focus-within{scrollbar-color:var(--scroll-thumb-hover) transparent}
+/* Fallback for older WebKit; modern engines use the standard rules above. */
+html::-webkit-scrollbar,.sidebar-nav::-webkit-scrollbar,.reading-outline nav::-webkit-scrollbar,.article-directory nav::-webkit-scrollbar{width:6px;height:6px}
+html::-webkit-scrollbar-track,.sidebar-nav::-webkit-scrollbar-track,.reading-outline nav::-webkit-scrollbar-track,.article-directory nav::-webkit-scrollbar-track{background:transparent}
+html::-webkit-scrollbar-thumb,.sidebar-nav::-webkit-scrollbar-thumb,.reading-outline nav::-webkit-scrollbar-thumb,.article-directory nav::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:8px}
+html::-webkit-scrollbar-thumb:hover,.sidebar-nav::-webkit-scrollbar-thumb:hover,.reading-outline nav::-webkit-scrollbar-thumb:hover,.article-directory nav::-webkit-scrollbar-thumb:hover{background:var(--scroll-thumb-hover)}
+@media(forced-colors:active){html,.sidebar-nav,.reading-outline nav,.article-directory nav{scrollbar-color:auto}}
