@@ -15,3 +15,5 @@ Browser checks: sidebar order, outline expansion/collapse, section jump/highligh
 Limitations: existing Noto/Spectral fonts still use Google Fonts; new Playfair/Albert fonts load locally. Bundle warning exceeds 500kB because all Markdown is eagerly included. Upload submission was not exercised against production. Release status is recorded in dated history.
 
 Sidebar refinement (2026-09-08): removed visible upload-order and search labels while retaining the input accessible name. Auxiliary Chinese text now uses self-hosted Noto Sans SC Variable; column numbers use Playfair Display lining/tabular figures. Build, lint and four tests passed; local light/dark visual checks passed. Production page, JS/CSS and a Noto font asset return HTTP 200.
+
+Follow-up sidebar typography: column titles now use self-hosted Noto Serif SC, and numbers use Cormorant Garamond 300 italic at 18px (supersedes the Playfair numbering above). Deployed abe99c2; build, lint, four tests, local desktop visual check and production page/CSS/JS/both font HTTP checks passed.
