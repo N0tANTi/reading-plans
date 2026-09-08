@@ -6,3 +6,5 @@
 .nav-sub{font-family:var(--sans);font-size:12px;font-weight:350;line-height:1.85;letter-spacing:.015em}
 .theme-toggle,.reading-outline nav,.outline-caption,.form-hint,.plan-keywords{font-family:var(--sans);font-weight:400}
 .nav-item .nav-number{font-family:var(--serif-lat);font-size:14px;font-weight:400;font-variant-numeric:lining-nums tabular-nums;letter-spacing:.025em;line-height:1.65;padding-top:2px}
+.nav-item .nav-label{font-family:var(--serif-lat),'Noto Serif SC Variable','Songti SC',serif;font-weight:400;letter-spacing:.035em;line-height:1.75}
+.nav-item .nav-number{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:300;font-style:italic;letter-spacing:0;line-height:1.5;padding-top:1px}
