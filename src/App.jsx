@@ -362,9 +362,8 @@ export default function App() {
         <div className="sidebar-header">
           <div className="sidebar-kicker">The Reading Gazette</div>
           <div className="sidebar-title">阅读计划</div>
-          <div className="upload-order">最新上传在前</div>
         </div>
-        <div className="column-search"><label htmlFor="column-search">查找栏目</label><input id="column-search" type="search" placeholder="标题、作者或关键词" value={query} onChange={e => setQuery(e.target.value)} /></div>
+        <div className="column-search"><input id="column-search" aria-label="查找栏目" type="search" placeholder="标题、作者或关键词" value={query} onChange={e => setQuery(e.target.value)} /></div>
         <nav className="sidebar-nav">
           {plans.map((plan, index) => ({plan, index})).filter(({plan}) => (plan.title + plan.subtitle + plan.desc).toLowerCase().includes(query.trim().toLowerCase())).map(({plan, index}) => (
             <button

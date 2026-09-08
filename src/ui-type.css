@@ -1,0 +1,7 @@
+/* Self-hosted Noto Sans SC gives Chinese utility text consistent shapes. */
+:root{--sans:'Albert Sans Variable','Noto Sans SC Variable','PingFang SC','Microsoft YaHei UI',sans-serif}
+.column-search input{font-family:var(--sans);font-size:14px;font-weight:400;letter-spacing:.025em;line-height:1.8;padding:10px 0 13px}
+.column-search input::placeholder{font-family:inherit;font-weight:350;color:var(--ink-3);opacity:1}
+.sidebar-header{padding-bottom:24px}.column-search{padding-bottom:24px}
+.nav-sub{font-family:var(--sans);font-size:12px;font-weight:350;line-height:1.85;letter-spacing:.015em}
+.theme-toggle,.reading-outline nav,.outline-caption,.form-hint,.plan-keywords{font-family:var(--sans);font-weight:400}
