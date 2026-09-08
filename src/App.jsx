@@ -53,6 +53,21 @@ function formatIssueDate(plan) {
 }
 
 function UploadModal({ onClose, initialMode, initialPlanId }) {
+  const dialogRef = useRef(null)
+  useEffect(() => {
+    const previous = document.activeElement
+    const dialog = dialogRef.current
+    dialog.querySelector('button')?.focus()
+    const onKey = (event) => {
+      if (event.key === 'Escape') onClose()
+      if (event.key !== 'Tab') return
+      const controls = [...dialog.querySelectorAll('button, input, select, textarea')].filter(el => !el.disabled && el.getClientRects().length)
+      if (event.shiftKey && document.activeElement === controls[0]) { event.preventDefault(); controls.at(-1)?.focus() }
+      if (!event.shiftKey && document.activeElement === controls.at(-1)) { event.preventDefault(); controls[0]?.focus() }
+    }
+    dialog.addEventListener('keydown', onKey)
+    return () => { dialog.removeEventListener('keydown', onKey); previous?.focus() }
+  }, [onClose])
   const [mode, setMode] = useState(initialMode)
   const [form, setForm] = useState({ title: '', subtitle: '', desc: '', filename: '', password: '' })
   const [selectedId, setSelectedId] = useState(initialPlanId)
@@ -127,7 +142,7 @@ function UploadModal({ onClose, initialMode, initialPlanId }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
+      <div className="modal" ref={dialogRef} role="dialog" aria-modal="true" aria-label="编辑阅读栏目" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>
             <div className="modal-mark">Editorial Desk · Revision Control</div>
@@ -261,7 +276,7 @@ function UploadModal({ onClose, initialMode, initialPlanId }) {
 }
 
 export default function App() {
-  const [activeId, setActiveId] = useState(plans[0]?.id || '')
+  const [activeId, setActiveId] = useState(() => { const id = new URLSearchParams(location.search).get('plan'); return plans.some(p => p.id === id) ? id : plans[0]?.id || '' })
   const [dark, setDark] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') === 'dark' ||
@@ -269,7 +284,11 @@ export default function App() {
     }
     return false
   })
-  const [showTop, setShowTop] = useState(false)
+  const [query, setQuery] = useState('')
+  const [fontSize, setFontSize] = useState(18)
+  const [focus, setFocus] = useState(false)
+  const [headings, setHeadings] = useState([])
+  const articleRef = useRef(null)
   const [showUpload, setShowUpload] = useState(false)
   const [uploadMode, setUploadMode] = useState('create')
 
@@ -282,12 +301,26 @@ export default function App() {
   }, [dark])
 
   useEffect(() => {
-    const onScroll = () => setShowTop(window.scrollY > 520)
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
+    const nodes = [...articleRef.current.querySelectorAll('h2, h3')]
+    nodes.forEach((node, index) => { node.id = 'section-' + index })
+    setHeadings(nodes.map(node => ({ id: node.id, title: node.textContent, level: node.tagName })))
+    document.title = activePlan.title + ' · 阅读计划'
+  }, [activePlan])
+
+  useEffect(() => {
+    const restore = () => {
+      const id = new URLSearchParams(location.search).get('plan')
+      setActiveId(plans.some(p => p.id === id) ? id : plans[0].id)
+    }
+    window.addEventListener('popstate', restore)
+    return () => window.removeEventListener('popstate', restore)
   }, [])
 
   const switchPlan = useCallback((id) => {
+    const url = new URL(location.href)
+    url.searchParams.set('plan', id)
+    url.hash = ''
+    history.pushState({}, '', url)
     setActiveId(id)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [])
@@ -298,17 +331,20 @@ export default function App() {
   }
 
   return (
-    <div className="app">
+    <div className={`app ${focus ? 'focus-reading' : ''}`} style={{ '--reading-size': fontSize + 'px' }}>
+      <a className="skip-link" href="#reading-content">跳到正文</a>
       <aside className="sidebar" aria-label="栏目索引">
         <div className="sidebar-header">
           <div className="sidebar-kicker">The Reading Gazette</div>
           <div className="sidebar-title">阅读计划</div>
           <div className="sidebar-sub">Index of Columns</div>
         </div>
+        <div className="column-search"><label htmlFor="column-search">查找栏目</label><input id="column-search" type="search" placeholder="标题、作者或关键词" value={query} onChange={e => setQuery(e.target.value)} /></div>
         <nav className="sidebar-nav">
-          {plans.map((plan, index) => (
+          {plans.map((plan, index) => ({plan, index})).filter(({plan}) => (plan.title + plan.subtitle + plan.desc).toLowerCase().includes(query.trim().toLowerCase())).map(({plan, index}) => (
             <button
               key={plan.id}
+              aria-current={activeId === plan.id ? 'page' : undefined}
               className={`nav-item ${activeId === plan.id ? 'active' : ''}`}
               onClick={() => switchPlan(plan.id)}
             >
@@ -320,6 +356,7 @@ export default function App() {
               </span>
             </button>
           ))}
+          {!plans.some(p => (p.title + p.subtitle + p.desc).toLowerCase().includes(query.trim().toLowerCase())) && <p className="empty-search" role="status">没有匹配的栏目。<button onClick={() => setQuery('')}>清除搜索</button></p>}
           <button className="nav-add" onClick={() => openEditor('create')}>
             <span className="nav-number">+</span>
             <span className="nav-label">新增栏目</span>
@@ -360,12 +397,13 @@ export default function App() {
       </header>
 
       <main className="main">
+        <div className="reading-toolbar"><a href="/">Archein ↗</a><div><button onClick={() => setFontSize(n => Math.max(16, n - 1))} disabled={fontSize <= 16} aria-label="缩小字号">A−</button><span aria-live="polite">{fontSize}</span><button onClick={() => setFontSize(n => Math.min(24, n + 1))} disabled={fontSize >= 24} aria-label="增大字号">A＋</button><button aria-pressed={focus} onClick={() => setFocus(v => !v)}>{focus ? '退出专注' : '专注阅读'}</button></div></div>
         <article className="content">
           <header className="masthead">
             <div className="edition-line">
-              <span>Personal Research Newspaper</span>
+              <span>PERSONAL RESEARCH ARCHIVE</span>
               <span>{formatIssueDate(activePlan)}</span>
-              <span>Vol. {pad2(plans.length)}</span>
+              <span>{plans.length} 个阅读栏目</span>
             </div>
             <div className="masthead-title">阅读计划</div>
             <div className="masthead-subtitle">THE READING GAZETTE</div>
@@ -374,14 +412,15 @@ export default function App() {
           <section className="article-head">
             <div className="article-meta">
               <span>Column No. {pad2(activeIndex + 1)}</span>
-              <span>{pad2(plans.length)} Columns Filed</span>
+              <span>约 {Math.max(1, Math.ceil(activePlan.content.length / 500))} 分钟阅读</span>
             </div>
             <h1 className="plan-title">{activePlan.title}</h1>
             {activePlan.subtitle && <p className="plan-subtitle">{activePlan.subtitle}</p>}
             {activePlan.desc && <p className="plan-keywords">{activePlan.desc}</p>}
           </section>
 
-          <div className="markdown-body">
+          <details className="article-directory" key={activeId}><summary>文章目录 <span>{headings.length} 个章节</span></summary><nav aria-label="文章目录">{headings.map(h => <a key={h.id} className={h.level === 'H3' ? 'subheading' : ''} href={'#' + h.id}>{h.title}</a>)}</nav></details>
+          <div className="markdown-body" id="reading-content" tabIndex={-1} ref={articleRef}>
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
@@ -398,11 +437,12 @@ export default function App() {
               {activePlan.content}
             </ReactMarkdown>
           </div>
+          <footer className="reading-footer"><span>THE READING GAZETTE</span>{activeIndex < plans.length - 1 && <button onClick={() => switchPlan(plans[activeIndex + 1].id)}>下一栏目：{plans[activeIndex + 1].title} →</button>}</footer>
         </article>
       </main>
 
       <button
-        className={`scroll-top ${showTop ? 'visible' : ''}`}
+        className="scroll-top visible"
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         aria-label="回到顶部"
       >
