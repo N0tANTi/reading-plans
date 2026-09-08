@@ -9,3 +9,7 @@ Rollback files and previous index: `/home/anti/apps/reading-plans/backups/ui-typ
 ## Serif follow-up
 
 Deployed abe99c2: self-hosted Noto Serif SC column titles and Cormorant Garamond light italic numbering. Build, lint and four tests passed; local desktop appearance checked. Production HTML, JS, CSS and both new font families returned HTTP 200. Backup: /home/anti/apps/reading-plans/backups/serif-type-20260908/. Same atomic release procedure and existing limitations apply.
+
+## Main-site favicon
+
+Deployed dc8b4f5: replaced the old SVG favicon reference with the main site's 32px anti PNG. Verified production HTML reference and image HTTP 200/image/png. Build, lint and four tests passed. Backup: /home/anti/apps/reading-plans/backups/favicon-20260908/.
