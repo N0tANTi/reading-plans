@@ -8,6 +8,8 @@ Columns sort newest upload first using timestamp-valued `order`, falling back to
 
 Validation: production build, ESLint and four existing server tests passed. Browser checked search, column switching, directory expansion/jump, font size, mobile layout at 390px, dark mode and focus mode.
 
-Second-revision browser checks: sidebar order, removal of duplicate masthead, right outline click and scroll tracking, and 390px mobile fallback without horizontal page overflow passed.
+Third revision: the outline starts collapsed, expands on the right, and toggles closed or closes with Escape. Hidden links are inert. Mobile uses a bottom-right floating panel; focus mode keeps this optional control. Expansion uses a 340ms transition, columns fade in over 360ms, and anchor jumps scroll smoothly with a brief target highlight. Reduced-motion preferences disable these effects. Chinese UI text explicitly uses PingFang/Microsoft YaHei UI fallbacks, with larger search and hint text; editorial body typography remains separate.
+
+Browser checks: sidebar order, outline expansion/collapse, section jump/highlight, column switching and 390px mobile panel checked. Build, lint and four existing tests pass.
 
 Limitations: existing Noto/Spectral fonts still use Google Fonts; new Playfair/Albert fonts load locally. Bundle warning exceeds 500kB because all Markdown is eagerly included. Upload submission was not exercised against production. Release status is recorded in dated history.

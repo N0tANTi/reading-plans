@@ -288,6 +288,7 @@ export default function App() {
   const [query, setQuery] = useState('')
   const [fontSize, setFontSize] = useState(18)
   const [focus, setFocus] = useState(false)
+  const [outlineOpen, setOutlineOpen] = useState(false)
   const [headings, setHeadings] = useState([])
   const [currentHeading, setCurrentHeading] = useState('')
   const directoryRef = useRef(null)
@@ -329,7 +330,7 @@ export default function App() {
     if (itemRect.top < listRect.top || itemRect.bottom > listRect.bottom) {
       list.scrollTop += itemRect.top - listRect.top - list.clientHeight / 3
     }
-  }, [currentHeading])
+  }, [currentHeading, outlineOpen])
 
   useEffect(() => {
     const restore = () => {
@@ -346,7 +347,7 @@ export default function App() {
     url.hash = ''
     history.pushState({}, '', url)
     setActiveId(id)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.scrollTo({ top: 0, behavior: 'instant' })
   }, [])
 
   const openEditor = (mode) => {
@@ -420,9 +421,9 @@ export default function App() {
         </div>
       </header>
 
-      <main className="main">
+      <main className={`main ${outlineOpen ? 'outline-open' : 'outline-closed'}`}>
         <div className="reading-toolbar"><a href="/">Archein ↗</a><div><button onClick={() => setFontSize(n => Math.max(16, n - 1))} disabled={fontSize <= 16} aria-label="缩小字号">A−</button><span aria-live="polite">{fontSize}</span><button onClick={() => setFontSize(n => Math.min(24, n + 1))} disabled={fontSize >= 24} aria-label="增大字号">A＋</button><button aria-pressed={focus} onClick={() => setFocus(v => !v)}>{focus ? '退出专注' : '专注阅读'}</button></div></div>
-        <article className="content">
+        <article className="content" key={activeId}>
           <section className="article-head">
             <div className="article-meta">
               <span>{formatIssueDate(activePlan)}</span>
@@ -433,7 +434,6 @@ export default function App() {
             {activePlan.desc && <p className="plan-keywords">{activePlan.desc}</p>}
           </section>
 
-          <details className="article-directory" key={activeId}><summary>文章目录 <span>{headings.length} 个章节</span></summary><nav aria-label="文章目录">{headings.map(h => <a key={h.id} aria-current={currentHeading === h.id ? 'location' : undefined} className={h.level === 'H3' ? 'subheading' : ''} href={'#' + h.id}>{h.title}</a>)}</nav></details>
           <div className="markdown-body" id="reading-content" tabIndex={-1} ref={articleRef}>
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
@@ -453,9 +453,12 @@ export default function App() {
           </div>
           <footer className="reading-footer"><span>THE READING GAZETTE</span>{activeIndex < plans.length - 1 && <button onClick={() => switchPlan(plans[activeIndex + 1].id)}>下一栏目：{plans[activeIndex + 1].title} →</button>}</footer>
         </article>
-        <aside className="reading-outline" aria-label="常驻文章目录">
-          <div className="outline-title"><span>文章目录</span><span>{headings.length}</span></div>
+        <aside className="reading-outline" aria-label="文章目录" onKeyDown={e => { if (e.key === 'Escape') { setOutlineOpen(false); e.currentTarget.querySelector('button').focus() } }}>
+          <button className="outline-toggle" aria-expanded={outlineOpen} aria-controls="outline-panel" onClick={() => setOutlineOpen(v => !v)}><span>目录</span><span className="outline-symbol" aria-hidden="true">{outlineOpen ? '−' : '+'}</span></button>
+          <div className="outline-panel" id="outline-panel" inert={!outlineOpen} aria-hidden={!outlineOpen}><div className="outline-panel-inner">
+          <div className="outline-caption">文章目录 · {headings.length} 个章节</div>
           <nav ref={directoryRef} aria-label="章节导航">{headings.map(h => <a key={h.id} aria-current={currentHeading === h.id ? 'location' : undefined} className={h.level === 'H3' ? 'subheading' : ''} href={'#' + h.id}>{h.title}</a>)}</nav>
+          </div></div>
         </aside>
       </main>
 
